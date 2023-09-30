@@ -102,7 +102,49 @@ os_fatal_error:
 	jmp $				; Halt execution
 
 	
-	.msg_inform		db '>>> FATAL OPERATING SYSTEM ERROR', 13, 10, 0
+	.msg_inform		db '>>> FATAL OPERATING SYSTEM ERROR <<<', 13, 10, 0
+	
+; ------------------------------------------------------------------
+; os_death_screen -- Show the death screen
+; IN: AX = Stop code string
+
+os_death_screen:
+	call os_hide_cursor
+	call os_clear_screen
+	
+	mov si, .error_msg		; Inform of fatal error
+	call os_print_string
+	
+	mov si, ax				; Show the stop code
+	call os_print_string
+	
+	mov ax, 2100
+	mov bx, 0
+	call os_speaker_tone
+	
+	mov ax, 60
+	call os_pause
+	
+	call os_speaker_off
+	
+	mov ax, 0
+	mov bx, 0
+	mov cx, 0
+	mov dx, 0
+	mov word si, [param_list]
+	mov di, 0
+
+	db 0x0ea
+	dw 0x0000
+	dw 0xffff
+	
+	.error_msg		db '>>> FATAL OPERATING SYSTEM ERROR <<<', 13, 10
+	.error_msg1		db 13, 10
+	.error_msg2		db 'The Operating System was failed to run. Please send', 13, 10
+	.error_msg3		db 'the stopcode to the developer. Your computer will', 13, 10
+	.error_msg4		db 'be restart on 1 minute', 13, 10
+	.error_msg5		db 13, 10
+	.error_msg6		db 'Stopcode : ', 0
 
 
 ; ==================================================================

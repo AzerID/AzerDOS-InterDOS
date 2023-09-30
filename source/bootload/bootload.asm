@@ -267,10 +267,9 @@ end:					; We've got the file to load!
 ; BOOTLOADER SUBROUTINES
 
 reboot:
-	mov ax, 0
-	int 16h				; Wait for keystroke
-	mov ax, 0
-	int 19h				; Reboot the system
+	db 0x0ea
+	dw 0x0000
+	dw 0xffff
 
 
 print_string:				; Output string in SI to screen
@@ -335,8 +334,8 @@ l2hts:			; Calculate head, track and sector settings for int 13h
 
 	kern_filename	db "KERNEL  BIN"	; MikeOS kernel filename
 
-	disk_error	db "Floppy error! Press any key...", 0
-	file_not_found	db "KERNEL.BIN not found!", 0
+	disk_error		db "FLOPPY ERROR", 0
+	file_not_found	db "KERNEL FILE NOT FOUND", 0
 
 	bootdev		db 0 	; Boot device number
 	cluster		dw 0 	; Cluster of the file we want to load

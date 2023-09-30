@@ -13,6 +13,7 @@ os_command_line:
 	call os_print_string
 	mov si, help_text
 	call os_print_string
+	call startup_sound
 
 
 get_cmd:				; Main processing loop
@@ -81,7 +82,7 @@ get_cmd:				; Main processing loop
 
 	mov di, cat_string		; 'CAT' entered?
 	call os_string_compare
-	jc near cat_file
+	jc near dump_file
 
 	mov di, del_string		; 'DEL' entered?
 	call os_string_compare
@@ -103,17 +104,17 @@ get_cmd:				; Main processing loop
 	call os_string_compare
 	jc dir_list
 
-	mov di, datetime_string		; 'DATETIME' entered?
-	call os_string_compare
-	jc print_datetime
-
-	mov di, shutdown_string		; 'SHUTDOWN' entered?
+	mov di, shutdown_string	; 'SHUTDOWN' entered?
 	call os_string_compare
 	jc shutdown_confirm
 
-	mov di, restart_string		; 'RESTART' entered?
+	mov di, restart_string	; 'RESTART' entered?
 	call os_string_compare
 	jc restart_confirm
+	
+	mov di, death_string	; 'DEATH' entered?
+	call os_string_compare
+	jc death_easter_egg
 
 	; If the user hasn't entered any of the above commands, then we
 	; need to check for an executable file -- .RUN or .BAS, and the
@@ -139,7 +140,7 @@ get_cmd:				; Main processing loop
 
 	mov di, bin_extension		; Or is there a .BIN extension?
 	call os_string_compare
-	jc bin_file
+	jc no_kernel_allowed
 
 	mov di, bas_extension		; Or is there a .BAS extension?
 	call os_string_compare
@@ -189,19 +190,6 @@ bas_file:
 	mov ax, 32768
 	mov word si, [param_list]
 	call os_run_basic
-
-	jmp get_cmd
-
-bin_file:
-	mov ax, command
-	mov bx, 0
-	mov cx, 32768
-	call os_load_file
-	jc total_fail
-
-execute_bin:
-	mov si, no_execute_bin
-	call os_print_string
 
 	jmp get_cmd
 
@@ -263,7 +251,7 @@ try_bin_ext:
 	mov byte [si+3], 'N'
 	mov byte [si+4], 0
 
-	jmp bin_file
+	jmp total_fail
 
 total_fail:
 	mov si, invalid_msg
@@ -282,7 +270,7 @@ no_kernel_allowed:
 ; ------------------------------------------------------------------
 
 print_help:
-	mov si, list_help
+	mov si, dir_help
 	call os_print_string
 	jmp get_cmd
 
@@ -306,10 +294,7 @@ shutdown_confirm:
 	option_shutdown_3		db 'back to InterDOS.', 0
 
 shutdown:
-	mov ax, 0x5307
-	mov bx, 0x0001
-	mov cx, 0x0003
-	int 0x15
+	call os_shutdown
 
 
 ; ------------------------------------------------------------------
@@ -339,9 +324,7 @@ restart_confirm:
 	option_restart_3		db 'back to InterDOS.', 0
 
 restart:
-	db 0x0ea
-	dw 0x0000
-	dw 0xffff
+	call os_restart
 
 
 ; ------------------------------------------------------------------
@@ -360,20 +343,6 @@ print_time:
 print_date:
 	mov bx, tmp_string
 	call os_get_date_string
-	mov si, bx
-	call os_print_string
-	call os_print_newline
-	jmp get_cmd
-
-
-; ------------------------------------------------------------------
-
-print_datetime:
-	mov bx, tmp_string
-	call os_get_date_string
-	mov si, bx
-	call os_print_string
-	call os_get_time_string
 	mov si, bx
 	call os_print_string
 	call os_print_newline
@@ -450,7 +419,7 @@ list_directory:
 
 ; ------------------------------------------------------------------
 
-cat_file:
+dump_file:
 	mov word si, [param_list]
 	call os_string_parse
 	cmp ax, 0			; Was a filename provided?
@@ -511,6 +480,15 @@ del_file:
 	jmp get_cmd
 
 .filename_provided:
+	mov dx, ax			; Store the filename
+	call os_string_uppercase
+	mov si, ax
+	mov di, kern_file_string
+	call os_string_compare		; Is kernel file or not?
+	jc .kern_del
+	
+	mov ax, dx 			; If not, store back the filename to AX
+
 	call os_remove_file
 	jc .failure
 
@@ -529,6 +507,11 @@ del_file:
 
 	.success_msg	db 'Deleted file: ', 0
 	.failure_msg	db 'Could not delete file - does not exist or write protected', 13, 10, 0
+	
+.kern_del:
+	mov si, kern_delete_warn_msg
+	call os_print_string
+	jmp get_cmd
 
 
 ; ------------------------------------------------------------------
@@ -582,6 +565,15 @@ copy_file:
 	jmp get_cmd
 
 .filename_provided:
+	mov dx, ax			; Store the filename
+	call os_string_uppercase
+	mov si, ax
+	mov di, kern_file_string
+	call os_string_compare		; Is kernel file or not?
+	jc .kern_copy
+	
+	mov ax, dx 			; If not, store back the filename to AX
+
 	mov dx, ax			; Store first filename temporarily
 	mov ax, bx
 	call os_file_exists
@@ -620,6 +612,11 @@ copy_file:
 
 	.tmp		dw 0
 	.success_msg	db 'File copied successfully', 13, 10, 0
+	
+.kern_copy:
+	mov si, kern_copy_warn_msg
+	call os_print_string
+	jmp get_cmd
 
 
 ; ------------------------------------------------------------------
@@ -636,6 +633,15 @@ ren_file:
 	jmp get_cmd
 
 .filename_provided:
+	mov dx, ax			; Store the filename
+	call os_string_uppercase
+	mov si, ax
+	mov di, kern_file_string
+	call os_string_compare		; Is kernel file or not?
+	jc .kern_ren
+	
+	mov ax, dx 			; If not, store back the filename to AX
+
 	mov cx, ax			; Store first filename temporarily
 	mov ax, bx			; Get destination
 	call os_file_exists		; Check to see if it exists
@@ -662,6 +668,11 @@ ren_file:
 
 	.success_msg	db 'File renamed successfully', 13, 10, 0
 	.failure_msg	db 'Operation failed - file not found or invalid filename', 13, 10, 0
+	
+.kern_ren:
+	mov si, kern_rename_warn_msg
+	call os_print_string
+	jmp get_cmd
 
 
 ; =====================================================================
@@ -1035,7 +1046,39 @@ type_name:
   .name_end:
 	popa
 	ret
+	
+; ---------------------------------------------------------------------
 
+kern_not_found:
+	mov ax, kern_stopcode
+	call os_death_screen
+	
+; ---------------------------------------------------------------------
+
+death_easter_egg:
+	mov ax, death_msg
+	call os_death_screen
+	
+; ---------------------------------------------------------------------
+
+startup_sound:
+	mov ax, 2850
+	mov bx, 0
+	call os_speaker_tone
+	
+	mov ax, 1
+	call os_pause
+
+	mov ax, 3000
+	mov bx, 0
+	call os_speaker_tone
+	
+	mov ax, 1
+	call os_pause
+	
+	call os_speaker_off
+	
+	jmp get_cmd
 
 ; =====================================================================
 
@@ -1055,24 +1098,22 @@ type_name:
 
 	prompt			db '> ', 0
 
-	list_help		db 'LS      : List the available file (with file sizes & date/time)', 13, 10
-	dir_help		db 'DIR     : List the available file', 13, 10
-	copy_help		db 'COPY    : Copy a file', 13, 10
-	ren_help		db 'REN     : Rename a file', 13, 10
-	del_help		db 'DEL     : Delete a file', 13, 10
-	cat_help		db 'CAT     : Dump the file on the screen', 13, 10
-	size_help		db 'SIZE    : Tell a size of a file', 13, 10
-	cls_help		db 'CLS     : Clear the screen', 13, 10
-	help_help		db 'HELP    : Tell all the possible commands', 13, 10
-	time_help		db 'TIME    : Tell the time', 13, 10
-	date_help		db 'DATE    : Tell the date', 13, 10
-	datetime_help	db 'DATETIME: Tell the date & time', 13, 10
-	shutdown_help	db 'SHUTDOWN: Turn off the computer', 13, 10
-	restart_help	db 'RESTART : Reboot the computer', 13, 10
-	ver_help		db 'VER     : Tell the InterDOS version', 13, 10, 0
+	dir_help		db 'DIR       : List the available file', 13, 10
+	list_help		db 'LS        : List the available file (with file sizes & date/time)', 13, 10
+	copy_help		db 'COPY      : Copy a file', 13, 10
+	ren_help		db 'REN       : Rename a file', 13, 10
+	del_help		db 'DEL       : Delete a file', 13, 10
+	cat_help		db 'CAT       : Dump the file on the screen', 13, 10
+	size_help		db 'SIZE      : Tell a size of a file', 13, 10
+	cls_help		db 'CLS       : Clear the screen', 13, 10
+	help_help		db 'HELP      : Tell all the possible commands', 13, 10
+	time_help		db 'TIME      : Tell the time', 13, 10
+	date_help		db 'DATE      : Tell the date', 13, 10
+	shutdown_help	db 'SHUTDOWN  : Turn off the computer', 13, 10
+	restart_help	db 'RESTART   : Restart the computer', 13, 10
+	ver_help		db 'VER       : Tell the InterDOS version', 13, 10, 0
 
-	help_text		db 'Type "help" to see possible commands', 13, 10, 0
-	help_command		db 'Commands: DIR, LS, COPY, REN, DEL, CAT, SIZE, CLS, HELP, TIME, DATE, VER, MINEOS', 13, 10, 0
+	help_text		db 'Type "HELP" to see possible commands', 13, 10, 0
 
 	invalid_msg		db 'No such command or program', 13, 10, 0
 	nofilename_msg		db 'No filename or not enough filenames', 13, 10, 0
@@ -1095,13 +1136,18 @@ type_name:
 	copy_string		db 'COPY', 0
 	size_string		db 'SIZE', 0
 	list_string		db 'LS', 0
-	datetime_string	db 'DATETIME', 0
 	shutdown_string db 'SHUTDOWN', 0
 	restart_string	db 'RESTART', 0
+	death_string	db 'DEATH', 0
 
-	kern_file_string	db 'KERNEL', 0
+	kern_file_string	db 'KERNEL.BIN', 0
 	kern_warn_msg		db 'Cannot execute kernel file!', 13, 10, 0
-	no_execute_bin		db 'Cannot execute binary file! Binary file is system file.', 13, 10, 0
+	kern_delete_warn_msg		db 'Cannot delete kernel file!', 13, 10, 0
+	kern_rename_warn_msg		db 'Cannot rename kernel file!', 13, 10, 0
+	kern_copy_warn_msg			db 'Cannot copy kernel file!', 13, 10, 0
+	kern_stopcode		db 'KERNEL FILE NOT FOUND', 0
+	
+	death_msg		db 'WOW, YOU GOT EASTER EGG', 0
 
 
 ; ==================================================================
