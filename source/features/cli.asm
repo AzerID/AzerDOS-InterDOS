@@ -115,6 +115,10 @@ get_cmd:				; Main processing loop
 	mov di, death_string	; 'DEATH' entered?
 	call os_string_compare
 	jc death_easter_egg
+	
+	mov di, edit_string	; 'EDIT' entered?
+	call os_string_compare
+	jc text_editor
 
 	; If the user hasn't entered any of the above commands, then we
 	; need to check for an executable file -- .RUN or .BAS, and the
@@ -175,6 +179,8 @@ execute_run:
 	mov di, 0
 
 	call 32768			; Call the external program
+	
+	call os_clear_screen	; Clear the screen before enter cmd
 
 	jmp get_cmd			; When program has finished, start again
 
@@ -190,6 +196,8 @@ bas_file:
 	mov ax, 32768
 	mov word si, [param_list]
 	call os_run_basic
+	
+	call os_clear_screen	; Clear the screen before enter cmd
 
 	jmp get_cmd
 
@@ -266,6 +274,12 @@ no_kernel_allowed:
 
 	jmp get_cmd
 
+
+; ------------------------------------------------------------------
+
+text_editor:
+	call os_text_editor
+	jmp get_cmd
 
 ; ------------------------------------------------------------------
 
@@ -485,7 +499,7 @@ del_file:
 	mov si, ax
 	mov di, kern_file_string
 	call os_string_compare		; Is kernel file or not?
-	jc .kern_del
+	jc no_kernel_allowed
 	
 	mov ax, dx 			; If not, store back the filename to AX
 
@@ -507,11 +521,6 @@ del_file:
 
 	.success_msg	db 'Deleted file: ', 0
 	.failure_msg	db 'Could not delete file - does not exist or write protected', 13, 10, 0
-	
-.kern_del:
-	mov si, kern_delete_warn_msg
-	call os_print_string
-	jmp get_cmd
 
 
 ; ------------------------------------------------------------------
@@ -570,7 +579,7 @@ copy_file:
 	mov si, ax
 	mov di, kern_file_string
 	call os_string_compare		; Is kernel file or not?
-	jc .kern_copy
+	jc no_kernel_allowed
 	
 	mov ax, dx 			; If not, store back the filename to AX
 
@@ -613,11 +622,6 @@ copy_file:
 	.tmp		dw 0
 	.success_msg	db 'File copied successfully', 13, 10, 0
 	
-.kern_copy:
-	mov si, kern_copy_warn_msg
-	call os_print_string
-	jmp get_cmd
-
 
 ; ------------------------------------------------------------------
 
@@ -638,7 +642,7 @@ ren_file:
 	mov si, ax
 	mov di, kern_file_string
 	call os_string_compare		; Is kernel file or not?
-	jc .kern_ren
+	jc no_kernel_allowed
 	
 	mov ax, dx 			; If not, store back the filename to AX
 
@@ -669,11 +673,6 @@ ren_file:
 	.success_msg	db 'File renamed successfully', 13, 10, 0
 	.failure_msg	db 'Operation failed - file not found or invalid filename', 13, 10, 0
 	
-.kern_ren:
-	mov si, kern_rename_warn_msg
-	call os_print_string
-	jmp get_cmd
-
 
 ; =====================================================================
 
@@ -1049,12 +1048,6 @@ type_name:
 	
 ; ---------------------------------------------------------------------
 
-kern_not_found:
-	mov ax, kern_stopcode
-	call os_death_screen
-	
-; ---------------------------------------------------------------------
-
 death_easter_egg:
 	mov ax, death_msg
 	call os_death_screen
@@ -1103,6 +1096,7 @@ startup_sound:
 	copy_help		db 'COPY      : Copy a file', 13, 10
 	ren_help		db 'REN       : Rename a file', 13, 10
 	del_help		db 'DEL       : Delete a file', 13, 10
+	edit_help		db 'EDIT      : Open text editor (May be so many bugs)', 13, 10
 	cat_help		db 'CAT       : Dump the file on the screen', 13, 10
 	size_help		db 'SIZE      : Tell a size of a file', 13, 10
 	cls_help		db 'CLS       : Clear the screen', 13, 10
@@ -1122,7 +1116,7 @@ startup_sound:
 	exists_msg		db 'Target file already exists!', 13, 10, 0
 	finished_msg		db 'Program finished, press any key to continue...', 0
 
-	version_msg		db 'InterDOS ', MIKEOS_VER, 13, 10, 0
+	version_msg		db 'AzerDOS ', MIKEOS_VER, 13, 10, 0
 
 	help_string		db 'HELP', 0
 	cls_string		db 'CLS', 0
@@ -1139,13 +1133,10 @@ startup_sound:
 	shutdown_string db 'SHUTDOWN', 0
 	restart_string	db 'RESTART', 0
 	death_string	db 'DEATH', 0
+	edit_string		db 'EDIT', 0
 
 	kern_file_string	db 'KERNEL.BIN', 0
-	kern_warn_msg		db 'Cannot execute kernel file!', 13, 10, 0
-	kern_delete_warn_msg		db 'Cannot delete kernel file!', 13, 10, 0
-	kern_rename_warn_msg		db 'Cannot rename kernel file!', 13, 10, 0
-	kern_copy_warn_msg			db 'Cannot copy kernel file!', 13, 10, 0
-	kern_stopcode		db 'KERNEL FILE NOT FOUND', 0
+	kern_warn_msg		db 'Access is denied!', 13, 10, 0
 	
 	death_msg		db 'WOW, YOU GOT EASTER EGG', 0
 

@@ -74,41 +74,6 @@ os_pause:
 ; IN: AX = error message string location
 
 os_fatal_error:
-	mov bx, ax			; Store string location for now
-
-	mov dh, 0
-	mov dl, 0
-	call os_move_cursor
-
-	pusha
-	mov ah, 09h			; Draw red bar at top
-	mov bh, 0
-	mov cx, 240
-	mov bl, 01001111b
-	mov al, ' '
-	int 10h
-	popa
-
-	mov dh, 0
-	mov dl, 0
-	call os_move_cursor
-
-	mov si, .msg_inform		; Inform of fatal error
-	call os_print_string
-
-	mov si, bx			; Program-supplied error message
-	call os_print_string
-
-	jmp $				; Halt execution
-
-	
-	.msg_inform		db '>>> FATAL OPERATING SYSTEM ERROR <<<', 13, 10, 0
-	
-; ------------------------------------------------------------------
-; os_death_screen -- Show the death screen
-; IN: AX = Stop code string
-
-os_death_screen:
 	call os_hide_cursor
 	call os_clear_screen
 	
@@ -118,14 +83,10 @@ os_death_screen:
 	mov si, ax				; Show the stop code
 	call os_print_string
 	
-	mov ax, 2100
-	mov bx, 0
-	call os_speaker_tone
+	call os_speaker_off
 	
 	mov ax, 60
 	call os_pause
-	
-	call os_speaker_off
 	
 	mov ax, 0
 	mov bx, 0
@@ -145,6 +106,13 @@ os_death_screen:
 	.error_msg4		db 'be restart on 1 minute', 13, 10
 	.error_msg5		db 13, 10
 	.error_msg6		db 'Stopcode : ', 0
+	
+; ------------------------------------------------------------------
+; os_death_screen -- Show the death screen (For Backward Compability)
+; IN: AX = Stop code string
+
+os_death_screen:
+	call os_fatal_error
 
 
 ; ==================================================================

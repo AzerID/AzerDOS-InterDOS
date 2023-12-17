@@ -12,7 +12,7 @@
 	BITS 16
 	CPU 386
 
-	%DEFINE MIKEOS_VER '1.0.1'
+	%DEFINE MIKEOS_VER '1.0.2'
 	%DEFINE MIKEOS_API_VER 18
 
 	disk_buffer	equ	24576
@@ -97,6 +97,7 @@ os_call_vectors:
 	jmp os_shutdown			; 00D5h
 	jmp os_restart			; 00D8h
 	jmp os_death_screen		; 00DBh
+	jmp os_text_editor
 
 
 ; ------------------------------------------------------------------
@@ -384,6 +385,7 @@ not_bas_extension:
 	%INCLUDE "features/string.asm"
 	%INCLUDE "features/basic.asm"
 	%INCLUDE "features/powerman.asm"
+	%INCLUDE "features/edit.asm"
 
 
 ; ==================================================================
